@@ -115,9 +115,11 @@ public class HeroScript : MonoBehaviour
             if (currentOpponent.audioSource != null && deathSound != null)
                 currentOpponent.audioSource.PlayOneShot(deathSound);
 
-            IncrementLVL(); // tu faisais ça dans UpdateColor avant
-        }
 
+        }
+        transform.localPosition = Vector3.zero; 
+        transform.localRotation = Quaternion.identity;
+        IncrementLVL(); // tu faisais ça dans UpdateColor avant
         currentOpponent.UpdateColor();
     }
 
@@ -159,7 +161,7 @@ public class HeroScript : MonoBehaviour
         float ratio = (float)pv / max_pv;
         Color c;
 
-        if (ratio <= 0.1f)
+        if (ratio <= 0.2f)
             c = Color.black;       // mort
         else if (ratio >= 0.9f)
             c = Color.green;       // full
