@@ -1,4 +1,4 @@
-﻿using Unity.VisualScripting;
+﻿using System.Collections;
 using UnityEngine;
 
 public class HeroScript : MonoBehaviour
@@ -16,43 +16,142 @@ public class HeroScript : MonoBehaviour
     [Header("Visuel PV")]
     public Renderer heroRenderer;
 
+    [Header("Distance")]
+    public float fightDistance = 0.32f;
+
+    [Header("Attaques")]
+    // Doit matcher attackSounds en ordre
+    private string[] attackTriggers =
+    {
+        "PunchTrigger",
+        "KickTrigger",
+        "HurricaneTrigger"
+    };
+
+    [Header("Audio")]
+    public AudioSource audioSource;
+
+    public AudioClip[] attackSounds;   // même ordre que attackTriggers
+    public AudioClip hurtSound;
+    public AudioClip deathSound;
+    public AudioClip healSound;
+    public AudioClip buffSound;
+
+    [Header("Hurricane")]
+    public float hurricaneDuration = 2.0f; // durée approximative de l'anim
+
+    private Vector3 hurricaneStartPos;
+    private Quaternion hurricaneStartRot;
+
     void Start()
     {
         pv = Mathf.Clamp(pv, 0, max_pv);
 
         if (animator == null)
             animator = GetComponent<Animator>();
+
+        if (audioSource == null)
+            audioSource = GetComponent<AudioSource>();
+
+        animator.applyRootMotion = true;
     }
 
     public void Attack()
     {
-        if (animator != null)
-            animator.SetTrigger("PunchTrigger");
-            currentOpponent.animator.SetTrigger("HittedTrigger");
-            currentOpponent.UpdateColor();
+        // Sécurité de base
+        if (currentOpponent == null || animator == null)
+            return;
 
-        if (currentOpponent != null)
-            currentOpponent.pv -= attack_base;
+        if (currentOpponent.animator == null)
+            return;
+
+        // Choix de l'attaque
+        int maxIndex = (lvl >= attackTriggers.Length) ? attackTriggers.Length : (lvl + 1);
+        int action = Random.Range(0, maxIndex);
+        string selectedAttack = attackTriggers[action];
+
+        // Dégâts
+        currentOpponent.pv -= attack_base;
+
+        // Son d'attaque (optionnel)
+        if (audioSource != null &&
+            attackSounds != null &&
+            attackSounds.Length > action &&
+            attackSounds[action] != null)
+        {
+            audioSource.PlayOneShot(attackSounds[action]);
+        }
+
+        // Cas spécial : Hurricane → on mémorise la position / rotation de départ
+        if (selectedAttack == "HurricaneTrigger")
+        {
+            hurricaneStartPos = transform.position;
+            hurricaneStartRot = transform.rotation;
+
+            // (Optionnel) on tourne vers l'adversaire
+            Vector3 toEnemy = currentOpponent.transform.position - transform.position;
+            toEnemy.y = 0;
+            if (toEnemy.sqrMagnitude > 0.001f)
+                transform.rotation = Quaternion.LookRotation(toEnemy);
+
+            StartCoroutine(RestoreAfterHurricane(hurricaneDuration));
+        }
+
+        // Animation d'attaque
+        animator.SetTrigger(selectedAttack);
+
+        // Réaction de l'adversaire
+        if (currentOpponent.pv > 0)
+        {
+            currentOpponent.animator.SetTrigger("HittedTrigger");
+
+            if (currentOpponent.audioSource != null && hurtSound != null)
+                currentOpponent.audioSource.PlayOneShot(hurtSound);
+        }
+        else
+        {
+            currentOpponent.animator.SetTrigger("DeathTrigger");
+
+            if (currentOpponent.audioSource != null && deathSound != null)
+                currentOpponent.audioSource.PlayOneShot(deathSound);
+
+            IncrementLVL(); // tu faisais ça dans UpdateColor avant
+        }
+
+        currentOpponent.UpdateColor();
+    }
+
+    private IEnumerator RestoreAfterHurricane(float delay)
+    {
+        // On laisse l'anim se jouer entièrement
+        yield return new WaitForSeconds(delay);
+
+        // On ramène le héros à son point de départ
+        transform.position = hurricaneStartPos;
+        transform.rotation = hurricaneStartRot;
     }
 
     public void Buff()
     {
         attack_base += 50;
+
+        if (audioSource != null && buffSound != null)
+            audioSource.PlayOneShot(buffSound);
     }
 
-    // Dans HeroScript.cs
-
-    public void Heal(int healAmount) // <-- On ajoute l'argument 'int healAmount'
+    public void Heal(int healAmount)
     {
-        // Optionnel : Vous pouvez commenter ou supprimer l'animation si elle est incorrecte
-        if (animator != null) 
-            animator.SetTrigger("HealTrigger"); 
+        if (animator != null)
+            animator.SetTrigger("HealTrigger");
 
-        pv += healAmount; // <-- On utilise la valeur passée en argument
-        pv = Mathf.Clamp(pv, 0, max_pv); // On utilise Clamp pour simplifier la vérification max_pv
+        pv += healAmount;
+        pv = Mathf.Clamp(pv, 0, max_pv);
         UpdateColor();
+
+        if (audioSource != null && healSound != null)
+            audioSource.PlayOneShot(healSound);
     }
-    // --- Couleur en fonction des PV ---
+
     void UpdateColor()
     {
         if (heroRenderer == null) return;
@@ -60,33 +159,37 @@ public class HeroScript : MonoBehaviour
         float ratio = (float)pv / max_pv;
         Color c;
 
-        if (ratio <= 0.1)
-        {
-            c = Color.black;        // mort
-        }
+        if (ratio <= 0.1f)
+            c = Color.black;       // mort
         else if (ratio >= 0.9f)
-        {
-            c = Color.green;        // full ou presque
-        }
+            c = Color.green;       // full
         else if (ratio >= 0.4f)
-        {
-            c = Color.yellow;       // milieu de vie
-        }
+            c = Color.yellow;      // milieu
         else
-        {
-            c = Color.red;          // low HP
-        }
+            c = Color.red;         // low HP
 
         heroRenderer.material.color = c;
-        if(pv <= 0)
-        {
-            animator.SetTrigger("DeathTrigger");
-            currentOpponent.IncrementLVL();
-        }
     }
 
     void IncrementLVL()
     {
         lvl++;
+    }
+
+    void Update()
+    {
+        if (animator == null)
+            return;
+
+        if (currentOpponent == null)
+        {
+            animator.SetBool("Fight", false);
+            return;
+        }
+
+        float distance = Vector3.Distance(transform.position, currentOpponent.transform.position);
+        bool isCloseEnough = distance <= fightDistance;
+
+        animator.SetBool("Fight", isCloseEnough);
     }
 }
