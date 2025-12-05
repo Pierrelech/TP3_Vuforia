@@ -45,17 +45,7 @@ public class UIManager : MonoBehaviour
         if (pauseGame)
             gameManager.PauseGame(false);
     }
-
-
-    private IEnumerator MessageRoutine(string text, float duration)
-    {
-        bigMessage.text = text;
-        bigMessage.gameObject.SetActive(true);
-
-        yield return new WaitForSeconds(duration);
-
-        bigMessage.gameObject.SetActive(false);
-    }
+     
 
     // ---------- HUD PERMANENT ----------
     public void UpdateHUD(float timer)
@@ -69,5 +59,4 @@ public class UIManager : MonoBehaviour
 
         hudInfo.text = $"Round : {gameManager.round}\nTour : {joueur}\nTemps : {seconds}s";
     }
-
 }
