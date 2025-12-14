@@ -8,7 +8,8 @@ public class HeroScript : MonoBehaviour
     public int attack_base = 100;
     public int pv = 900;
     public int lvl = 0;
-    public HeroScript currentOpponent;
+    public HeroScript opponentA;
+    public HeroScript opponentB;
 
     [Header("Animation")]
     public Animator animator;
@@ -43,21 +44,59 @@ public class HeroScript : MonoBehaviour
     private Vector3 hurricaneStartPos;
     private Quaternion hurricaneStartRot;
 
+    private HeroScript GetActiveOpponent()
+    {
+        // 1) priorité : celui qui est tracké (Vuforia)
+        if (IsOpponentValid(opponentA)) return opponentA;
+        if (IsOpponentValid(opponentB)) return opponentB;
+
+        return null;
+    }
+
+    private bool IsOpponentValid(HeroScript h)
+    {
+        if (h == null) return false;
+
+        // Fallback simple : objet actif dans la hiérarchie
+        if (!h.gameObject.activeInHierarchy) return false;
+
+#if VUFORIA_PRESENT
+        // Si Vuforia est là : on vérifie que la cible est réellement trackée
+        var observer = h.GetComponentInParent<ObserverBehaviour>();
+        if (observer != null)
+        {
+            var s = observer.TargetStatus.Status;
+            bool tracked = (s == Status.TRACKED || s == Status.EXTENDED_TRACKED);
+            if (!tracked) return false;
+        }
+#endif
+
+        return true;
+    }
+
     void Start()
     {
         pv = Mathf.Clamp(pv, 0, max_pv);
 
+        // Activer uniquement le skin courant
+      
+            // fallback si tu n'utilises pas encore le système d'évolution
         if (animator == null)
             animator = GetComponent<Animator>();
 
         if (audioSource == null)
             audioSource = GetComponent<AudioSource>();
+        
 
-        animator.applyRootMotion = true;
+        if (animator != null)
+            animator.applyRootMotion = true;
     }
+
+
 
     public void Attack()
     {
+        var currentOpponent = GetActiveOpponent();
         // Sécurité de base
         if (currentOpponent == null || animator == null)
             return;
@@ -114,13 +153,56 @@ public class HeroScript : MonoBehaviour
 
             if (currentOpponent.audioSource != null && deathSound != null)
                 currentOpponent.audioSource.PlayOneShot(deathSound);
-
-
         }
-        transform.localPosition = Vector3.zero; 
+
+        // Remise en place locale (si le héros est enfant d'un autre objet)
+        transform.localPosition = Vector3.zero;
         transform.localRotation = Quaternion.identity;
-        IncrementLVL(); // tu faisais ça dans UpdateColor avant
+
+        IncrementLVL();
         currentOpponent.UpdateColor();
+    }
+
+    // Appelée par la carte Vuforia d'évolution
+
+    private IEnumerator PlayEvolutionSequence()
+    {
+        // Lance l’anim
+        animator.SetTrigger("Evolution");
+
+        // On attend la fin de l’image pour que Unity mette à jour l’anim
+        yield return null;
+
+        // On récupère la durée de l’animation actuelle
+        AnimatorStateInfo state = animator.GetCurrentAnimatorStateInfo(0);
+
+        // Tant que l'animation n'est pas finie
+        while (state.normalizedTime < 1f || animator.IsInTransition(0))
+        {
+            yield return null;
+            state = animator.GetCurrentAnimatorStateInfo(0);
+        }
+
+        // 👉 Ici l’animation est TERMINÉE
+        Debug.Log("Animation d'évolution terminée !");
+
+        // 🔥 Maintenant tu mets ce que tu veux faire APRÈS l’évolution :
+        // Exemple :
+        // ActivateNextModel();
+        // stats upgrade, effets, VFX, changement de prefab…
+    }
+
+    public bool TryEvolutionFromCard(int requiredLevel)
+    {
+        if (lvl < requiredLevel)
+        {
+            Debug.Log("Niveau insuffisant pour évoluer !");
+            return false;
+        }
+
+        StartCoroutine(PlayEvolutionSequence());           // déclenche l'évolution normale
+        
+        return true;
     }
 
     private IEnumerator RestoreAfterHurricane(float delay)
@@ -154,7 +236,7 @@ public class HeroScript : MonoBehaviour
             audioSource.PlayOneShot(healSound);
     }
 
-    void UpdateColor()
+    public void UpdateColor()
     {
         if (heroRenderer == null) return;
 
@@ -178,8 +260,18 @@ public class HeroScript : MonoBehaviour
         lvl++;
     }
 
+    public void Evolution()
+    {
+        
+        if (animator != null)
+            animator.SetTrigger("Evolution");
+
+        
+    }
+
     void Update()
     {
+        var currentOpponent = GetActiveOpponent();
         if (animator == null)
             return;
 
