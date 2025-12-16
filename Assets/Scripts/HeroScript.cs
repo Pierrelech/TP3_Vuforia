@@ -285,5 +285,15 @@ public class HeroScript : MonoBehaviour
         bool isCloseEnough = distance <= fightDistance;
 
         animator.SetBool("Fight", isCloseEnough);
+    public void ResetHero(bool hardReset=false)
+    {
+        pv = max_pv;
+        UpdateColor();
+        if (hardReset)
+        {
+            attack_base = 100;
+            max_pv = 1000;
+            lvl = 0;
+        }
     }
 }
