@@ -36,7 +36,7 @@ public class FissureAttack : MonoBehaviour
         if (actionTriggeredThisVisibility) return;
 
         // Demande au GameManager de jouer l'action d'attaque du tour
-        bool attackDone = gameManager.TryAttackCurrentPlayer();
+        bool attackDone = gameManager.TryAttack();
 
         if (attackDone)
         {

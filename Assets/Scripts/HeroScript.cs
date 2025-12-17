@@ -1,299 +1,153 @@
 ﻿using System.Collections;
 using UnityEngine;
 
+[System.Serializable]
+public class HeroEvolutionData
+{
+    [Header("Conteneur de l'évolution")]
+    public GameObject evolutionRoot;   // EMPTY Evo_0, Evo_1, etc.
+
+    [Header("Stats de l'évolution")]
+    public int maxPV = 1000;
+    public int attackBase = 100;
+}
+
 public class HeroScript : MonoBehaviour
 {
-    [Header("Stats")]
-    public int max_pv = 1000;
-    public int attack_base = 100;
-    public int pv = 900;
+    [Header("Stats actuelles")]
+    public int pv;
+    public int max_pv;
+    public int attack_base;
     public int lvl = 0;
-    public HeroScript opponentA;
-    public HeroScript opponentB;
 
-    [Header("Animation")]
-    public Animator animator;
+    [Header("Évolutions")]
+    public HeroEvolutionData[] evolutions;
 
-    [Header("Visuel PV")]
-    public Renderer heroRenderer;
+    private int currentEvolutionIndex = 0;
+    private bool isEvolving = false;
 
-    [Header("Distance")]
-    public float fightDistance = 0.32f;
+    // Références dynamiques vers l'évolution active
+    private Animator currentAnimator;
+    private AudioSource currentAudio;
 
-    [Header("Attaques")]
-    // Doit matcher attackSounds en ordre
-    private string[] attackTriggers =
-    {
-        "PunchTrigger",
-        "KickTrigger",
-        "HurricaneTrigger"
-    };
+    public Animator Animator => currentAnimator;
+    public bool IsEvolving => isEvolving;
 
-    [Header("Audio")]
-    public AudioSource audioSource;
-
-    public AudioClip[] attackSounds;   // même ordre que attackTriggers
-    public AudioClip hurtSound;
-    public AudioClip deathSound;
-    public AudioClip healSound;
-    public AudioClip buffSound;
-
-    [Header("Hurricane")]
-    public float hurricaneDuration = 2.0f; // durée approximative de l'anim
-
-    private Vector3 hurricaneStartPos;
-    private Quaternion hurricaneStartRot;
-
-    private HeroScript GetActiveOpponent()
-    {
-        // 1) priorité : celui qui est tracké (Vuforia)
-        if (IsOpponentValid(opponentA)) return opponentA;
-        if (IsOpponentValid(opponentB)) return opponentB;
-
-        return null;
-    }
-
-    private bool IsOpponentValid(HeroScript h)
-    {
-        if (h == null) return false;
-
-        // Fallback simple : objet actif dans la hiérarchie
-        if (!h.gameObject.activeInHierarchy) return false;
-
-#if VUFORIA_PRESENT
-        // Si Vuforia est là : on vérifie que la cible est réellement trackée
-        var observer = h.GetComponentInParent<ObserverBehaviour>();
-        if (observer != null)
-        {
-            var s = observer.TargetStatus.Status;
-            bool tracked = (s == Status.TRACKED || s == Status.EXTENDED_TRACKED);
-            if (!tracked) return false;
-        }
-#endif
-
-        return true;
-    }
+    // ---------------- INITIALISATION ----------------
 
     void Start()
     {
-        pv = Mathf.Clamp(pv, 0, max_pv);
-
-        // Activer uniquement le skin courant
-      
-            // fallback si tu n'utilises pas encore le système d'évolution
-        if (animator == null)
-            animator = GetComponent<Animator>();
-
-        if (audioSource == null)
-            audioSource = GetComponent<AudioSource>();
-        
-
-        if (animator != null)
-            animator.applyRootMotion = true;
+        ApplyEvolution(0, instant: true);
     }
 
+    // ---------------- ATTAQUE ----------------
 
-
-    public void Attack()
+    public void Attack(HeroScript target)
     {
-        var currentOpponent = GetActiveOpponent();
-        // Sécurité de base
-        if (currentOpponent == null || animator == null)
-            return;
+        if (isEvolving || target == null) return;
 
-        if (currentOpponent.animator == null)
-            return;
+        target.pv -= attack_base;
 
-        // Choix de l'attaque
-        int maxIndex = (lvl >= attackTriggers.Length) ? attackTriggers.Length : (lvl + 1);
-        int action = Random.Range(0, maxIndex);
-        string selectedAttack = attackTriggers[action];
+        currentAnimator.SetTrigger("PunchTrigger");
+        target.Animator.SetTrigger("HittedTrigger");
 
-        // Dégâts
-        currentOpponent.pv -= attack_base;
-
-        // Son d'attaque (optionnel)
-        if (audioSource != null &&
-            attackSounds != null &&
-            attackSounds.Length > action &&
-            attackSounds[action] != null)
-        {
-            audioSource.PlayOneShot(attackSounds[action]);
-        }
-
-        // Cas spécial : Hurricane → on mémorise la position / rotation de départ
-        if (selectedAttack == "HurricaneTrigger")
-        {
-            hurricaneStartPos = transform.position;
-            hurricaneStartRot = transform.rotation;
-
-            // (Optionnel) on tourne vers l'adversaire
-            Vector3 toEnemy = currentOpponent.transform.position - transform.position;
-            toEnemy.y = 0;
-            if (toEnemy.sqrMagnitude > 0.001f)
-                transform.rotation = Quaternion.LookRotation(toEnemy);
-
-            StartCoroutine(RestoreAfterHurricane(hurricaneDuration));
-        }
-
-        // Animation d'attaque
-        animator.SetTrigger(selectedAttack);
-
-        // Réaction de l'adversaire
-        if (currentOpponent.pv > 0)
-        {
-            currentOpponent.animator.SetTrigger("HittedTrigger");
-
-            if (currentOpponent.audioSource != null && hurtSound != null)
-                currentOpponent.audioSource.PlayOneShot(hurtSound);
-        }
-        else
-        {
-            currentOpponent.animator.SetTrigger("DeathTrigger");
-
-            if (currentOpponent.audioSource != null && deathSound != null)
-                currentOpponent.audioSource.PlayOneShot(deathSound);
-        }
-
-        // Remise en place locale (si le héros est enfant d'un autre objet)
-        transform.localPosition = Vector3.zero;
-        transform.localRotation = Quaternion.identity;
-
-        IncrementLVL();
-        currentOpponent.UpdateColor();
+        target.ClampPV();
     }
 
-    // Appelée par la carte Vuforia d'évolution
+    // ---------------- HEAL / BUFF ----------------
 
-    private IEnumerator PlayEvolutionSequence()
+    public void Heal(int amount)
     {
-        // Lance l’anim
-        animator.SetTrigger("Evolution");
-
-        // On attend la fin de l’image pour que Unity mette à jour l’anim
-        yield return null;
-
-        // On récupère la durée de l’animation actuelle
-        AnimatorStateInfo state = animator.GetCurrentAnimatorStateInfo(0);
-
-        // Tant que l'animation n'est pas finie
-        while (state.normalizedTime < 1f || animator.IsInTransition(0))
-        {
-            yield return null;
-            state = animator.GetCurrentAnimatorStateInfo(0);
-        }
-
-        // 👉 Ici l’animation est TERMINÉE
-        Debug.Log("Animation d'évolution terminée !");
-
-        // 🔥 Maintenant tu mets ce que tu veux faire APRÈS l’évolution :
-        // Exemple :
-        // ActivateNextModel();
-        // stats upgrade, effets, VFX, changement de prefab…
-    }
-
-    public bool TryEvolutionFromCard(int requiredLevel)
-    {
-        if (lvl < requiredLevel)
-        {
-            Debug.Log("Niveau insuffisant pour évoluer !");
-            return false;
-        }
-
-        StartCoroutine(PlayEvolutionSequence());           // déclenche l'évolution normale
-        
-        return true;
-    }
-
-    private IEnumerator RestoreAfterHurricane(float delay)
-    {
-        // On laisse l'anim se jouer entièrement
-        yield return new WaitForSeconds(delay);
-
-        // On ramène le héros à son point de départ
-        transform.position = hurricaneStartPos;
-        transform.rotation = hurricaneStartRot;
+        pv = Mathf.Clamp(pv + amount, 0, max_pv);
+        currentAnimator.SetTrigger("HealTrigger");
     }
 
     public void Buff()
     {
         attack_base += 50;
-
-        if (audioSource != null && buffSound != null)
-            audioSource.PlayOneShot(buffSound);
     }
 
-    public void Heal(int healAmount)
+    // ---------------- ÉVOLUTION ----------------
+
+    public bool TryEvolutionFromCard(int requiredLevel)
     {
-        if (animator != null)
-            animator.SetTrigger("HealTrigger");
+        if (isEvolving) return false;
+        if (lvl < requiredLevel) return false;
+        if (currentEvolutionIndex >= evolutions.Length - 1) return false;
 
-        pv += healAmount;
-        pv = Mathf.Clamp(pv, 0, max_pv);
-        UpdateColor();
-
-        if (audioSource != null && healSound != null)
-            audioSource.PlayOneShot(healSound);
+        StartCoroutine(EvolutionRoutine());
+        return true;
     }
 
-    public void UpdateColor()
+    private IEnumerator EvolutionRoutine()
     {
-        if (heroRenderer == null) return;
+        isEvolving = true;
 
-        float ratio = (float)pv / max_pv;
-        Color c;
+        currentAnimator.SetTrigger("Evolution");
 
-        if (ratio <= 0.2f)
-            c = Color.black;       // mort
-        else if (ratio >= 0.9f)
-            c = Color.green;       // full
-        else if (ratio >= 0.4f)
-            c = Color.yellow;      // milieu
-        else
-            c = Color.red;         // low HP
+        yield return null;
+        AnimatorStateInfo state = currentAnimator.GetCurrentAnimatorStateInfo(0);
 
-        heroRenderer.material.color = c;
-    }
+        while (state.normalizedTime < 1f || currentAnimator.IsInTransition(0))
+            yield return null;
 
-    void IncrementLVL()
-    {
         lvl++;
+        ApplyEvolution(currentEvolutionIndex + 1, instant: false);
+
+        isEvolving = false;
     }
 
-    public void Evolution()
-    {
-        
-        if (animator != null)
-            animator.SetTrigger("Evolution");
+    // ---------------- APPLICATION ÉVOLUTION ----------------
 
-        
+    private void ApplyEvolution(int index, bool instant)
+    {
+        // Désactiver toutes les évolutions
+        foreach (var evo in evolutions)
+            evo.evolutionRoot.SetActive(false);
+
+        // Activer la nouvelle
+        HeroEvolutionData evoData = evolutions[index];
+        evoData.evolutionRoot.SetActive(true);
+
+        currentEvolutionIndex = index;
+
+        // Récupérer Animator & AudioSource SUR L'EMPTY
+        currentAnimator = evoData.evolutionRoot.GetComponent<Animator>();
+        currentAudio = evoData.evolutionRoot.GetComponent<AudioSource>();
+
+        // Mise à jour des stats
+        max_pv = evoData.maxPV;
+        attack_base = evoData.attackBase;
+
+        // Gestion PV
+        if (instant)
+        {
+            pv = max_pv;
+        }
+        else
+        {
+            float ratio = (float)pv / max_pv;
+            pv = Mathf.RoundToInt(ratio * max_pv);
+        }
+
+        ClampPV();
     }
 
-    void Update()
+    private void ClampPV()
     {
-        var currentOpponent = GetActiveOpponent();
-        if (animator == null)
-            return;
+        pv = Mathf.Clamp(pv, 0, max_pv);
+    }
 
-        if (currentOpponent == null)
-        {
-            animator.SetBool("Fight", false);
-            return;
-        }
+    // ---------------- RESET ----------------
 
-        float distance = Vector3.Distance(transform.position, currentOpponent.transform.position);
-        bool isCloseEnough = distance <= fightDistance;
-
-        animator.SetBool("Fight", isCloseEnough);
-    public void ResetHero(bool hardReset=false)
+    public void ResetHero(bool hardReset)
     {
-        pv = max_pv;
-        UpdateColor();
-        if (hardReset)
-        {
-            attack_base = 100;
-            max_pv = 1000;
-            lvl = 0;
-        }
+        lvl = 0;
+        ApplyEvolution(0, instant: true);
+    }
+
+    public void GainLevel(int amount)
+    {
+        lvl += amount;
     }
 }
