@@ -4,25 +4,23 @@ using UnityEngine;
 public class GameBehaviour : MonoBehaviour
 {
     public enum TurnState { Player1, Player2 }
-    public UIManager ui;
 
-    [Header("Héros")]
+    [Header("Références")]
     public HeroScript player1;
     public HeroScript player2;
+    public UIManager ui;
 
-    [Header("Paramètres de jeu")]
+    [Header("Paramètres")]
     public int round = 1;
     public TurnState currentTurn = TurnState.Player1;
     public float turnDuration = 60f;
 
-    private bool secondaryActionUsed = false; // Heal ou Buff
-    private bool attackUsed = false;          // Attaque principale
-
-    private float timer = 0f;
-    private bool gamePaused = false;
+    private bool secondaryActionUsed;
+    private bool attackUsed;
+    private float timer;
+    private bool gamePaused;
 
     public bool IsPaused => gamePaused;
-
 
     void Start()
     {
@@ -30,32 +28,17 @@ public class GameBehaviour : MonoBehaviour
         StartGame();
     }
 
-    // ------------------ DEBUT DE PARTIE ------------------
+    // ---------------- GAME FLOW ----------------
 
     public void StartGame()
     {
         round = 1;
-
         player1.ResetHero(true);
         player2.ResetHero(true);
 
-        player1.currentOpponent = player2;
-        player2.currentOpponent = player1;
-
         ui.ShowBigMessage("Début de la partie !");
-        ui.UpdateHUD(timer);
-
         StartRound();
     }
-
-    public void PauseGame(bool value)
-    {
-        gamePaused = value;
-        Debug.Log("Game paused = " + value);
-    }
-
-
-    // ------------------ ROUNDS ------------------
 
     void StartRound()
     {
@@ -63,96 +46,29 @@ public class GameBehaviour : MonoBehaviour
         StartCoroutine(StartTurnAfterDelay(TurnState.Player1, 1.5f));
     }
 
-    private IEnumerator StartTurnAfterDelay(TurnState turn, float delay)
+    IEnumerator StartTurnAfterDelay(TurnState turn, float delay)
     {
+        PauseGame(true);
         yield return new WaitForSeconds(delay);
+        PauseGame(false);
         StartTurn(turn);
     }
-
-
-    // ------------------ TOURS ------------------
 
     void StartTurn(TurnState turn)
     {
         currentTurn = turn;
-
-        // Reset des actions du tour
         secondaryActionUsed = false;
         attackUsed = false;
-
         timer = turnDuration;
 
-        ui.ShowBigMessage(
-            $"Tour du {(turn == TurnState.Player1 ? "Joueur 1" : "Joueur 2")}"
-        );
+        ui.ShowBigMessage($"Tour du {(turn == TurnState.Player1 ? "Joueur 1" : "Joueur 2")}");
         ui.UpdateHUD(timer);
-
     }
-
-    // ------------------ ACTIONS : ATTAQUE ------------------
-
-    public bool TryAttackCurrentPlayer()
-    {
-        if (gamePaused)
-        {
-            Debug.Log("Le jeu est en pause, action secondaire impossible.");
-            return false;
-        }
-        HeroScript currentHero =
-            (currentTurn == TurnState.Player1) ? player1 : player2;
-
-        if (attackUsed)
-        {
-            Debug.Log("Attaque déjà utilisée !");
-            return false;
-        }
-
-        // Le joueur attaque
-        currentHero.Attack();
-        attackUsed = true;
-
-        EndTurn();
-        return true;
-    }
-
-    // ------------------ ACTIONS : HEAL / BUFF ------------------
-
-    public bool TryUseSecondaryAction(System.Action<HeroScript> action)
-    {
-        if (gamePaused) {
-            Debug.Log("Le jeu est en pause, action secondaire impossible.");
-            return false;
-        }
-
-        HeroScript currentHero =
-            (currentTurn == TurnState.Player1) ? player1 : player2;
-
-        if (secondaryActionUsed)
-        {
-            Debug.Log("Action secondaire déjà utilisée ce tour !");
-            return false;
-        }
-
-        if (attackUsed)
-        {
-            Debug.Log("Impossible d'utiliser Heal ou Buff après l'attaque !");
-            return false;
-        }
-
-        action(currentHero);
-        secondaryActionUsed = true;
-
-        return true;
-    }
-
-    // ------------------ FIN DU TOUR ------------------
 
     void EndTurn()
     {
         if (currentTurn == TurnState.Player1)
-        {
             StartTurn(TurnState.Player2);
-        }
         else
         {
             round++;
@@ -160,20 +76,109 @@ public class GameBehaviour : MonoBehaviour
         }
     }
 
-    // ------------------ TIMER ------------------
+    public void PauseGame(bool value)
+    {
+        gamePaused = value;
+    }
+
+    // ---------------- ACTIONS ----------------
+
+    public bool TryAttack()
+    {
+        if (gamePaused || attackUsed) return false;
+
+        HeroScript attacker = (currentTurn == TurnState.Player1) ? player1 : player2;
+        HeroScript target = (currentTurn == TurnState.Player1) ? player2 : player1;
+
+        attacker.Attack(target);
+        attackUsed = true;
+
+        if (target.pv <= 0)
+        {
+            HandleVictory(attacker, target);
+        }
+        else
+        {
+            EndTurn();
+        }
+
+        return true;
+    }
+
+    private void HandleVictory(HeroScript winner, HeroScript loser)
+    {
+        Debug.Log($"{winner.name} gagne la manche !");
+
+        // Pause le jeu
+        PauseGame(true);
+
+        // Level up du vainqueur
+        winner.GainLevel(1);
+
+        // Reset PV du perdant uniquement
+        loser.pv = loser.max_pv;
+
+        // UI
+        ui.ShowBigMessage(
+            $"{winner.name} gagne la manche !",
+            2f,
+            true
+        );
+
+        // Nouvelle manche après délai
+        StartCoroutine(StartNextRoundAfterDelay(2f));
+    }
+
+
+    private IEnumerator StartNextRoundAfterDelay(float delay)
+{
+    yield return new WaitForSeconds(delay);
+
+    PauseGame(false);
+
+    round++;
+    StartRound();
+}
+
+
+    public bool TryHeal(int amount)
+    {
+        if (gamePaused || secondaryActionUsed || attackUsed) return false;
+
+        HeroScript hero = (currentTurn == TurnState.Player1) ? player1 : player2;
+        hero.Heal(amount);
+        secondaryActionUsed = true;
+        return true;
+    }
+
+    public bool TryBuff()
+    {
+        if (gamePaused || secondaryActionUsed || attackUsed) return false;
+
+        HeroScript hero = (currentTurn == TurnState.Player1) ? player1 : player2;
+        hero.Buff();
+        secondaryActionUsed = true;
+        return true;
+    }
+
+    public bool TryEvolution(int requiredLevel)
+    {
+        if (gamePaused) return false;
+
+        HeroScript hero = (currentTurn == TurnState.Player1) ? player1 : player2;
+        return hero.TryEvolutionFromCard(requiredLevel);
+    }
+
+    // ---------------- TIMER ----------------
 
     void Update()
     {
-        if (gamePaused) return;  // ⛔ on stoppe tout
+        if (gamePaused) return;
 
         timer -= Time.deltaTime;
         ui.UpdateHUD(timer);
 
         if (timer <= 0 && !attackUsed)
-        {
-            Debug.Log("Temps écoulé → Fin automatique du tour");
             EndTurn();
-        }
     }
-
 }

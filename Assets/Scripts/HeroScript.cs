@@ -1,38 +1,65 @@
-﻿using Unity.VisualScripting;
+﻿using System.Collections;
 using UnityEngine;
+
+[System.Serializable]
+public class HeroEvolutionData
+{
+    [Header("Conteneur de l'évolution")]
+    public GameObject evolutionRoot;   // EMPTY Evo_0, Evo_1, etc.
+
+    [Header("Stats de l'évolution")]
+    public int maxPV = 1000;
+    public int attackBase = 100;
+}
 
 public class HeroScript : MonoBehaviour
 {
-    [Header("Stats")]
-    public int max_pv = 1000;
-    public int attack_base = 100;
-    public int pv = 900;
+    [Header("Stats actuelles")]
+    public int pv;
+    public int max_pv;
+    public int attack_base;
     public int lvl = 0;
-    public HeroScript currentOpponent;
 
-    [Header("Animation")]
-    public Animator animator;
+    [Header("Évolutions")]
+    public HeroEvolutionData[] evolutions;
 
-    [Header("Visuel PV")]
-    public Renderer heroRenderer;
+    private int currentEvolutionIndex = 0;
+    private bool isEvolving = false;
+
+    // Références dynamiques vers l'évolution active
+    private Animator currentAnimator;
+    private AudioSource currentAudio;
+
+    public Animator Animator => currentAnimator;
+    public bool IsEvolving => isEvolving;
+
+    // ---------------- INITIALISATION ----------------
 
     void Start()
     {
-        pv = Mathf.Clamp(pv, 0, max_pv);
-
-        if (animator == null)
-            animator = GetComponent<Animator>();
+        ApplyEvolution(0, instant: true);
     }
 
-    public void Attack()
-    {
-        if (animator != null)
-            animator.SetTrigger("PunchTrigger");
-            currentOpponent.animator.SetTrigger("HittedTrigger");
-            currentOpponent.UpdateColor();
+    // ---------------- ATTAQUE ----------------
 
-        if (currentOpponent != null)
-            currentOpponent.pv -= attack_base;
+    public void Attack(HeroScript target)
+    {
+        if (isEvolving || target == null) return;
+
+        target.pv -= attack_base;
+
+        currentAnimator.SetTrigger("PunchTrigger");
+        target.Animator.SetTrigger("HittedTrigger");
+
+        target.ClampPV();
+    }
+
+    // ---------------- HEAL / BUFF ----------------
+
+    public void Heal(int amount)
+    {
+        pv = Mathf.Clamp(pv + amount, 0, max_pv);
+        currentAnimator.SetTrigger("HealTrigger");
     }
 
     public void Buff()
@@ -40,65 +67,87 @@ public class HeroScript : MonoBehaviour
         attack_base += 50;
     }
 
-    // Dans HeroScript.cs
+    // ---------------- ÉVOLUTION ----------------
 
-    public void Heal(int healAmount) // <-- On ajoute l'argument 'int healAmount'
+    public bool TryEvolutionFromCard(int requiredLevel)
     {
-        // Optionnel : Vous pouvez commenter ou supprimer l'animation si elle est incorrecte
-        if (animator != null) 
-            animator.SetTrigger("HealTrigger"); 
+        if (isEvolving) return false;
+        if (lvl < requiredLevel) return false;
+        if (currentEvolutionIndex >= evolutions.Length - 1) return false;
 
-        pv += healAmount; // <-- On utilise la valeur passée en argument
-        pv = Mathf.Clamp(pv, 0, max_pv); // On utilise Clamp pour simplifier la vérification max_pv
-        UpdateColor();
+        StartCoroutine(EvolutionRoutine());
+        return true;
     }
-    // --- Couleur en fonction des PV ---
-    void UpdateColor()
+
+    private IEnumerator EvolutionRoutine()
     {
-        if (heroRenderer == null) return;
+        isEvolving = true;
 
-        float ratio = (float)pv / max_pv;
-        Color c;
+        currentAnimator.SetTrigger("Evolution");
 
-        if (ratio <= 0.1)
+        yield return null;
+        AnimatorStateInfo state = currentAnimator.GetCurrentAnimatorStateInfo(0);
+
+        while (state.normalizedTime < 1f || currentAnimator.IsInTransition(0))
+            yield return null;
+
+        lvl++;
+        ApplyEvolution(currentEvolutionIndex + 1, instant: false);
+
+        isEvolving = false;
+    }
+
+    // ---------------- APPLICATION ÉVOLUTION ----------------
+
+    private void ApplyEvolution(int index, bool instant)
+    {
+        // Désactiver toutes les évolutions
+        foreach (var evo in evolutions)
+            evo.evolutionRoot.SetActive(false);
+
+        // Activer la nouvelle
+        HeroEvolutionData evoData = evolutions[index];
+        evoData.evolutionRoot.SetActive(true);
+
+        currentEvolutionIndex = index;
+
+        // Récupérer Animator & AudioSource SUR L'EMPTY
+        currentAnimator = evoData.evolutionRoot.GetComponent<Animator>();
+        currentAudio = evoData.evolutionRoot.GetComponent<AudioSource>();
+
+        // Mise à jour des stats
+        max_pv = evoData.maxPV;
+        attack_base = evoData.attackBase;
+
+        // Gestion PV
+        if (instant)
         {
-            c = Color.black;        // mort
-        }
-        else if (ratio >= 0.9f)
-        {
-            c = Color.green;        // full ou presque
-        }
-        else if (ratio >= 0.4f)
-        {
-            c = Color.yellow;       // milieu de vie
+            pv = max_pv;
         }
         else
         {
-            c = Color.red;          // low HP
+            float ratio = (float)pv / max_pv;
+            pv = Mathf.RoundToInt(ratio * max_pv);
         }
 
-        heroRenderer.material.color = c;
-        if(pv <= 0)
-        {
-            animator.SetTrigger("DeathTrigger");
-            currentOpponent.IncrementLVL();
-        }
+        ClampPV();
     }
 
-    void IncrementLVL()
+    private void ClampPV()
     {
-        lvl++;
+        pv = Mathf.Clamp(pv, 0, max_pv);
     }
 
-    public void ResetHero(bool hardReset=false)
+    // ---------------- RESET ----------------
+
+    public void ResetHero(bool hardReset)
     {
-        pv = max_pv;
-        UpdateColor();
-        if (hardReset)
-        {
-            attack_base = 100;
-            max_pv = 1000;
-            lvl = 0;
-        }
+        lvl = 0;
+        ApplyEvolution(0, instant: true);
+    }
+
+    public void GainLevel(int amount)
+    {
+        lvl += amount;
     }
 }
