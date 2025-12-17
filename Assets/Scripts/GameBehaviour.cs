@@ -20,15 +20,84 @@ public class GameBehaviour : MonoBehaviour
     private float timer;
     private bool gamePaused;
 
+    [Header("Distance / Déclenchement du combat")]
+    public float startFightDistance = 0.35f;
+
+    private bool matchStarted = false;
+    private bool inFightRange = false;
+    private bool waitingForDistance = true;
+
     public bool IsPaused => gamePaused;
 
     void Start()
     {
         ui = FindFirstObjectByType<UIManager>();
-        StartGame();
+
+        PauseGame(true);
+        waitingForDistance = true;
+        matchStarted = false;
+
+        player1.SetInGuard(false);
+        player2.SetInGuard(false);
+
+        ui.ShowBigMessage("Approchez les héros pour commencer", 2f, false);
     }
 
+
     // ---------------- GAME FLOW ----------------
+
+    private void UpdateFightDistance()
+    {
+        float distance = Vector3.Distance(
+            player1.transform.position,
+            player2.transform.position
+        );
+
+        bool closeEnough = distance <= startFightDistance;
+
+        // Changement d'état uniquement si nécessaire
+        if (closeEnough != inFightRange)
+        {
+            inFightRange = closeEnough;
+
+            if (inFightRange)
+            {
+                // Mise en garde + regard
+                player1.SetInGuard(true);
+                player2.SetInGuard(true);
+
+                player1.FaceTarget(player2.transform.position);
+                player2.FaceTarget(player1.transform.position);
+
+                PauseGame(false);
+
+                // Lancer le jeu UNE SEULE FOIS
+                if (!matchStarted)
+                {
+                    matchStarted = true;
+                    waitingForDistance = false;
+                    StartGame();
+                }
+            }
+            else
+            {
+                // Trop loin → idle + pause
+                player1.SetInGuard(false);
+                player2.SetInGuard(false);
+
+                PauseGame(true);
+                waitingForDistance = true;
+            }
+        }
+
+        // Tant qu'ils sont proches → ils se regardent
+        if (inFightRange)
+        {
+            player1.FaceTarget(player2.transform.position);
+            player2.FaceTarget(player1.transform.position);
+        }
+    }
+
 
     public void StartGame()
     {
@@ -173,7 +242,14 @@ public class GameBehaviour : MonoBehaviour
 
     void Update()
     {
-        if (gamePaused) return;
+        UpdateFightDistance();
+
+        // Tant que la distance n'est pas atteinte → rien ne se passe
+        if (waitingForDistance)
+            return;
+
+        if (gamePaused)
+            return;
 
         timer -= Time.deltaTime;
         ui.UpdateHUD(timer);
@@ -181,4 +257,5 @@ public class GameBehaviour : MonoBehaviour
         if (timer <= 0 && !attackUsed)
             EndTurn();
     }
+
 }

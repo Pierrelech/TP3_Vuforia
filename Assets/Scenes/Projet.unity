@@ -560,7 +560,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4374556204415110446, guid: 1e6be2549a30f314a8a7e26a20404403, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0
+      value: 0.0546
       objectReference: {fileID: 0}
     - target: {fileID: 4374556204415110446, guid: 1e6be2549a30f314a8a7e26a20404403, type: 3}
       propertyPath: m_LocalRotation.w
@@ -1198,6 +1198,19 @@ MonoBehaviour:
   - evolutionRoot: {fileID: 1250061067}
     maxPV: 1200
     attackBase: 110
+  fightBool: Fight
+  punchTrigger: PunchTrigger
+  kickTrigger: KickTrigger
+  hurricaneTrigger: HurricaneTrigger
+  hitTrigger: HittedTrigger
+  healTrigger: HealTrigger
+  deathTrigger: DeathTrigger
+  evolutionTrigger: EvolutionTrigger
+  punchSound: {fileID: 8300000, guid: fda740c0baf5c3c4b92136f7a5bff022, type: 3}
+  kickSound: {fileID: 8300000, guid: fda740c0baf5c3c4b92136f7a5bff022, type: 3}
+  hurricaneSound: {fileID: 8300000, guid: fda740c0baf5c3c4b92136f7a5bff022, type: 3}
+  hitSound: {fileID: 0}
+  deathSound: {fileID: 0}
 --- !u!1 &874962997
 GameObject:
   m_ObjectHideFlags: 0
@@ -1366,9 +1379,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a011c1e685e7d0947844225b07ee742c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  imageTracker: {fileID: 874962997}
-  delta: {x: 0, y: 0, z: 0}
-  goIn: 0
 --- !u!114 &874963003
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1381,7 +1391,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e016dab37a37a9148957411be5827024, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  detectionRange: 0.5
   healAmount: 150
 --- !u!114 &874963005
 MonoBehaviour:
@@ -2322,6 +2331,19 @@ MonoBehaviour:
   - evolutionRoot: {fileID: 242081295}
     maxPV: 1200
     attackBase: 110
+  fightBool: Fight
+  punchTrigger: PunchTrigger
+  kickTrigger: KickTrigger
+  hurricaneTrigger: HurricaneTrigger
+  hitTrigger: HittedTrigger
+  healTrigger: HealTrigger
+  deathTrigger: DeathTrigger
+  evolutionTrigger: EvolutionTrigger
+  punchSound: {fileID: 8300000, guid: fda740c0baf5c3c4b92136f7a5bff022, type: 3}
+  kickSound: {fileID: 8300000, guid: fda740c0baf5c3c4b92136f7a5bff022, type: 3}
+  hurricaneSound: {fileID: 8300000, guid: fda740c0baf5c3c4b92136f7a5bff022, type: 3}
+  hitSound: {fileID: 0}
+  deathSound: {fileID: 0}
 --- !u!1 &1853506172 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 100108, guid: df7ef05fa87d48248ba181823b336391, type: 3}
@@ -2600,6 +2622,7 @@ MonoBehaviour:
   round: 1
   currentTurn: 0
   turnDuration: 60
+  startFightDistance: 0.35
 --- !u!4 &2036581022
 Transform:
   m_ObjectHideFlags: 0
@@ -2898,7 +2921,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4374556204415110446, guid: 1e6be2549a30f314a8a7e26a20404403, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 0
+      value: 0.0546
       objectReference: {fileID: 0}
     - target: {fileID: 4374556204415110446, guid: 1e6be2549a30f314a8a7e26a20404403, type: 3}
       propertyPath: m_LocalRotation.w
