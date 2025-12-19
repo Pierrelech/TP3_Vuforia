@@ -3,9 +3,8 @@ using Vuforia;
 
 public class EvolveFighter : MonoBehaviour
 {
-    [Header("Conditions d'évolution")]
-    public int requiredLevel = 1; // Niveau minimum requis pour évoluer
-
+   
+    private int requiredLevel; // Niveau minimum requis pour évoluer
     private bool isCardVisible = false;
     private bool actionTriggeredThisVisibility = false;
 
@@ -14,6 +13,7 @@ public class EvolveFighter : MonoBehaviour
     void Start()
     {
         gameManager = FindFirstObjectByType<GameBehaviour>();
+        requiredLevel = gameManager.evolutionLevel;
     }
 
     // ---------- VUFORIA EVENTS ----------

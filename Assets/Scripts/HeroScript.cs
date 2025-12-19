@@ -34,6 +34,8 @@ public class HeroScript : MonoBehaviour
     public string healTrigger = "HealTrigger";
     public string deathTrigger = "DeathTrigger";
     public string evolutionTrigger = "EvolutionTrigger"; // À AJOUTER
+    public bool IsDead => pv <= 0;
+
 
     [Header("Audio")]
     public AudioClip punchSound;
@@ -103,27 +105,45 @@ public class HeroScript : MonoBehaviour
         }
 
         // Animation + son attaque
-        if (currentAnimator) currentAnimator.SetTrigger(trigger);
+        if (currentAnimator)
+            currentAnimator.SetTrigger(trigger);
+
         PlaySound(attackSound);
 
-        // Réaction de la cible
+        // 🔥 COUP FATAL ?
+        if (target.pv <= 0)
+        {
+            if (target.currentAnimator)
+            {
+                // 🔥 GARANTIR l'état Idle/Fight (seul état connecté à Death)
+                target.currentAnimator.SetBool(fightBool, true);
+                Debug.Log(fightBool);
+
+                // ⚠️ optionnel mais sûr : on laisse 1 frame à l'Animator
+                target.currentAnimator.Update(0f);
+
+                // Déclenchement normal de la mort
+                target.currentAnimator.SetTrigger(deathTrigger);
+            }
+
+            if (target.currentAudio && deathSound)
+                target.currentAudio.PlayOneShot(deathSound);
+
+            target.ClampPV();
+            return;
+        }
+
+
+        // ✅ Sinon seulement → Hit
         if (target.currentAnimator)
             target.currentAnimator.SetTrigger(hitTrigger);
 
         if (target.currentAudio && hitSound)
             target.currentAudio.PlayOneShot(hitSound);
 
-        if (target.pv <= 0)
-        {
-            if (target.currentAnimator)
-                target.currentAnimator.SetTrigger(deathTrigger);
-
-            if (target.currentAudio && deathSound)
-                target.currentAudio.PlayOneShot(deathSound);
-        }
-
         target.ClampPV();
     }
+
 
 
     // Transform functions
@@ -190,11 +210,23 @@ public class HeroScript : MonoBehaviour
         while (state.normalizedTime < 1f || currentAnimator.IsInTransition(0))
             yield return null;
 
-        lvl++;
         ApplyEvolution(currentEvolutionIndex + 1, instant: false);
 
         isEvolving = false;
     }
+
+    public void Revive()
+    {
+        pv = max_pv;
+
+        if (currentAnimator != null)
+        {
+            currentAnimator.Rebind();
+            currentAnimator.Update(0f);
+            currentAnimator.SetBool(fightBool, true);
+        }
+    }
+
 
 
     // ---------------- APPLICATION ÉVOLUTION ----------------
@@ -239,6 +271,15 @@ public class HeroScript : MonoBehaviour
         }
 
         ClampPV();
+
+        // 🔥 INITIALISATION CRITIQUE DE L’ANIMATOR
+        if (currentAnimator != null)
+        {
+            currentAnimator.Rebind();
+            currentAnimator.Update(0f);
+            currentAnimator.SetBool(fightBool, true);
+        }
+
     }
 
     private void ClampPV()
