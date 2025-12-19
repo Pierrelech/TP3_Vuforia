@@ -2252,8 +2252,10 @@ MonoBehaviour:
   punchSound: {fileID: 8300000, guid: fda740c0baf5c3c4b92136f7a5bff022, type: 3}
   kickSound: {fileID: 8300000, guid: fda740c0baf5c3c4b92136f7a5bff022, type: 3}
   hurricaneSound: {fileID: 8300000, guid: fda740c0baf5c3c4b92136f7a5bff022, type: 3}
-  hitSound: {fileID: 0}
-  deathSound: {fileID: 0}
+  hitSound: {fileID: 8300000, guid: 47e26624aae9f4e47ab4c8887e2bc3a9, type: 3}
+  healSound: {fileID: 8300000, guid: 74334cdaef2948d4a88971cca020a90f, type: 3}
+  evolveSound: {fileID: 8300000, guid: 619a02e455368d846afddbbee147a419, type: 3}
+  deathSound: {fileID: 8300000, guid: 5779f6dac1557614596d49a3e21faa56, type: 3}
 --- !u!1 &846964120
 GameObject:
   m_ObjectHideFlags: 0
@@ -3576,8 +3578,10 @@ MonoBehaviour:
   punchSound: {fileID: 8300000, guid: fda740c0baf5c3c4b92136f7a5bff022, type: 3}
   kickSound: {fileID: 8300000, guid: fda740c0baf5c3c4b92136f7a5bff022, type: 3}
   hurricaneSound: {fileID: 8300000, guid: fda740c0baf5c3c4b92136f7a5bff022, type: 3}
-  hitSound: {fileID: 0}
-  deathSound: {fileID: 0}
+  hitSound: {fileID: 8300000, guid: 47e26624aae9f4e47ab4c8887e2bc3a9, type: 3}
+  healSound: {fileID: 8300000, guid: 74334cdaef2948d4a88971cca020a90f, type: 3}
+  evolveSound: {fileID: 8300000, guid: 619a02e455368d846afddbbee147a419, type: 3}
+  deathSound: {fileID: 8300000, guid: 5779f6dac1557614596d49a3e21faa56, type: 3}
 --- !u!1 &1696527640
 GameObject:
   m_ObjectHideFlags: 0
@@ -3751,6 +3755,55 @@ RectTransform:
   m_AnchoredPosition: {x: -347.24118, y: -139.3124}
   m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &1836804880
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1836804882}
+  - component: {fileID: 1836804881}
+  m_Layer: 0
+  m_Name: VFXManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1836804881
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1836804880}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d9432dbb214696249bda0ebc38a6305d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  healVFX: {fileID: 8460451154262833079, guid: 8698acd6c3701514e8e7c119dece77e6, type: 3}
+  attackVFX: {fileID: 8460451154262833079, guid: 369acd5022bc4a0409070357e5239650, type: 3}
+  evolutionVFX: {fileID: 8460451154262833079, guid: 2532b4ff62669594093c842369e6c8af, type: 3}
+  deathVFX: {fileID: 8460451154262833079, guid: cd8bcb4bac3071444b8a3e7085b45136, type: 3}
+  defaultOffset: {x: 0, y: 0, z: 0}
+--- !u!4 &1836804882
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1836804880}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -48.1806, y: -3.7739067, z: 783.97705}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1853506172 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 100108, guid: df7ef05fa87d48248ba181823b336391, type: 3}
@@ -4304,7 +4357,7 @@ MonoBehaviour:
   fightDistance: 0.35
   currentTurn: 0
   round: 1
-  maxMatchesWon: 3
+  maxMatchesWon: 2
 --- !u!4 &2036581022
 Transform:
   m_ObjectHideFlags: 0
@@ -4685,3 +4738,4 @@ SceneRoots:
   - {fileID: 2036581022}
   - {fileID: 1437559130}
   - {fileID: 968962392}
+  - {fileID: 1836804882}

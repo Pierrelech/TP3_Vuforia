@@ -42,6 +42,8 @@ public class HeroScript : MonoBehaviour
     public AudioClip kickSound;
     public AudioClip hurricaneSound;
     public AudioClip hitSound;
+    public AudioClip healSound;
+    public AudioClip evolveSound;
     public AudioClip deathSound;
 
 
@@ -108,11 +110,15 @@ public class HeroScript : MonoBehaviour
         if (currentAnimator)
             currentAnimator.SetTrigger(trigger);
 
+
+
         PlaySound(attackSound);
 
         // 🔥 COUP FATAL ?
         if (target.pv <= 0)
         {
+            VFXManager.Instance?.PlayVFX(VFXType.Death, target.currentVisualRoot);
+
             if (target.currentAnimator)
             {
                 // 🔥 GARANTIR l'état Idle/Fight (seul état connecté à Death)
@@ -133,7 +139,7 @@ public class HeroScript : MonoBehaviour
             return;
         }
 
-
+        VFXManager.Instance?.PlayVFX(VFXType.Attack, target.currentVisualRoot);
         // ✅ Sinon seulement → Hit
         if (target.currentAnimator)
             target.currentAnimator.SetTrigger(hitTrigger);
@@ -174,9 +180,13 @@ public class HeroScript : MonoBehaviour
     public void Heal(int amount)
     {
         pv = Mathf.Clamp(pv + amount, 0, max_pv);
+        VFXManager.Instance?.PlayVFX(VFXType.Heal, currentVisualRoot);
 
         if (currentAnimator)
             currentAnimator.SetTrigger(healTrigger);
+
+        if (currentAudio && healSound)
+            currentAudio.PlayOneShot(healSound);
     }
 
 
@@ -194,6 +204,8 @@ public class HeroScript : MonoBehaviour
         if (currentEvolutionIndex >= evolutions.Length - 1) return false;
 
         StartCoroutine(EvolutionRoutine());
+
+
         return true;
     }
 
@@ -204,6 +216,10 @@ public class HeroScript : MonoBehaviour
         if (currentAnimator)
             currentAnimator.SetTrigger(evolutionTrigger);
 
+
+        if (currentAudio && evolveSound)
+            currentAudio.PlayOneShot(evolveSound);
+
         yield return null;
         AnimatorStateInfo state = currentAnimator.GetCurrentAnimatorStateInfo(0);
 
@@ -211,7 +227,7 @@ public class HeroScript : MonoBehaviour
             yield return null;
 
         ApplyEvolution(currentEvolutionIndex + 1, instant: false);
-
+        VFXManager.Instance?.PlayVFX(VFXType.Evolution, currentVisualRoot);
         isEvolving = false;
     }
 
