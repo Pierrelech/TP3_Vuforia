@@ -10,112 +10,148 @@ public class GameBehaviour : MonoBehaviour
     public HeroScript player2;
     public UIManager ui;
 
-    [Header("Paramètres")]
-    public int round = 1;
-    public TurnState currentTurn = TurnState.Player1;
+    [Header("Gameplay")]
     public float turnDuration = 60f;
+    public int evolutionLevel = 1;
 
-    private bool secondaryActionUsed;
-    private bool attackUsed;
-    private float timer;
-    private bool gamePaused;
-
-    [Header("Distance / Déclenchement du combat")]
+    [Header("Distances")]
     public float startFightDistance = 0.35f;
+    public float fightDistance = 0.35f;
 
-    private bool matchStarted = false;
-    private bool inFightRange = false;
-    private bool waitingForDistance = true;
+    public TurnState currentTurn = TurnState.Player1;
+    public int round = 1;
+
+
+    [Header("Match Settings")]
+    public int maxMatchesWon = 3;
+
+    private int player1Score = 0;
+    private int player2Score = 0;
+
+    private bool matchOver = false;
+
+    private bool cardUsedThisTurn;
+    private bool gamePaused;
+    private bool matchStarted;
+    private float timer;
+
+
 
     public bool IsPaused => gamePaused;
+
+    // ---------------- INIT ----------------
 
     void Start()
     {
         ui = FindFirstObjectByType<UIManager>();
 
         PauseGame(true);
-        waitingForDistance = true;
         matchStarted = false;
-
-        player1.SetInGuard(false);
-        player2.SetInGuard(false);
 
         ui.ShowBigMessage("Approchez les héros pour commencer", 2f, false);
     }
 
+    // ---------------- UPDATE ----------------
 
-    // ---------------- GAME FLOW ----------------
+    void Update()
+    {
+        // 🔥 Toujours gérer Fight par la distance
+        UpdateFightByDistance();
 
-    private void UpdateFightDistance()
+        // 🔥 Tant que le match n'a pas commencé, on attend la distance
+        if (!matchStarted)
+        {
+            CheckStartDistance();
+            return;
+        }
+
+        if (gamePaused)
+            return;
+
+        timer -= Time.deltaTime;
+        ui.UpdateHUD(timer);
+
+        if (timer <= 0 && !cardUsedThisTurn)
+            EndTurn();
+    }
+
+
+    // ---------------- DISTANCE ----------------
+
+    private void CheckStartDistance()
     {
         float distance = Vector3.Distance(
             player1.transform.position,
             player2.transform.position
         );
 
-        bool closeEnough = distance <= startFightDistance;
-
-        // Changement d'état uniquement si nécessaire
-        if (closeEnough != inFightRange)
+        if (distance <= startFightDistance)
         {
-            inFightRange = closeEnough;
+            matchStarted = true;
+
+            // Reset complet
+            player1.ResetHero(true);
+            player2.ResetHero(true);
+
+            PauseGame(false);
+            StartGame();
+        }
+    }
+
+    private void UpdateFightByDistance()
+    {
+        float distance = Vector3.Distance(
+            player1.transform.position,
+            player2.transform.position
+        );
+
+        bool inFightRange = distance <= startFightDistance;
+
+        // ----- PLAYER 1 -----
+        if (!player1.IsDead)
+        {
+            player1.SetInGuard(inFightRange);
 
             if (inFightRange)
-            {
-                // Mise en garde + regard
-                player1.SetInGuard(true);
-                player2.SetInGuard(true);
-
                 player1.FaceTarget(player2.transform.position);
-                player2.FaceTarget(player1.transform.position);
-
-                PauseGame(false);
-
-                // Lancer le jeu UNE SEULE FOIS
-                if (!matchStarted)
-                {
-                    matchStarted = true;
-                    waitingForDistance = false;
-                    StartGame();
-                }
-            }
-            else
-            {
-                // Trop loin → idle + pause
-                player1.SetInGuard(false);
-                player2.SetInGuard(false);
-
-                PauseGame(true);
-                waitingForDistance = true;
-            }
+        }
+        else
+        {
+            // IMPORTANT : ne jamais forcer Fight si mort
+            player1.SetInGuard(true);
         }
 
-        // Tant qu'ils sont proches → ils se regardent
-        if (inFightRange)
+        // ----- PLAYER 2 -----
+        if (!player2.IsDead)
         {
-            player1.FaceTarget(player2.transform.position);
-            player2.FaceTarget(player1.transform.position);
+            player2.SetInGuard(inFightRange);
+
+            if (inFightRange)
+                player2.FaceTarget(player1.transform.position);
+        }
+        else
+        {
+            player2.SetInGuard(true);
         }
     }
 
 
-    public void StartGame()
+    // ---------------- GAME FLOW ----------------
+
+    private void StartGame()
     {
         round = 1;
-        player1.ResetHero(true);
-        player2.ResetHero(true);
-
         ui.ShowBigMessage("Début de la partie !");
         StartRound();
     }
 
-    void StartRound()
+    private void StartRound()
     {
         ui.ShowBigMessage($"Round {round} !", 1.5f, true);
         StartCoroutine(StartTurnAfterDelay(TurnState.Player1, 1.5f));
     }
 
-    IEnumerator StartTurnAfterDelay(TurnState turn, float delay)
+    private IEnumerator StartTurnAfterDelay(TurnState turn, float delay)
     {
         PauseGame(true);
         yield return new WaitForSeconds(delay);
@@ -123,18 +159,18 @@ public class GameBehaviour : MonoBehaviour
         StartTurn(turn);
     }
 
-    void StartTurn(TurnState turn)
+    private void StartTurn(TurnState turn)
     {
         currentTurn = turn;
-        secondaryActionUsed = false;
-        attackUsed = false;
+        cardUsedThisTurn = false;
         timer = turnDuration;
 
-        ui.ShowBigMessage($"Tour du {(turn == TurnState.Player1 ? "Joueur 1" : "Joueur 2")}");
-        ui.UpdateHUD(timer);
+        ui.ShowBigMessage(
+            $"Tour du {(turn == TurnState.Player1 ? "Joueur 1" : "Joueur 2")}"
+        );
     }
 
-    void EndTurn()
+    private void EndTurn()
     {
         if (currentTurn == TurnState.Player1)
             StartTurn(TurnState.Player2);
@@ -145,22 +181,36 @@ public class GameBehaviour : MonoBehaviour
         }
     }
 
-    public void PauseGame(bool value)
-    {
-        gamePaused = value;
-    }
-
     // ---------------- ACTIONS ----------------
+
+    private bool CanUseCard()
+    {
+        if (matchOver)
+            return false;
+
+        // ⚠️ interdit toute action hors combat
+        float distance = Vector3.Distance(
+            player1.transform.position,
+            player2.transform.position
+        );
+
+        bool inFight = distance <= fightDistance;
+
+        return inFight && !gamePaused && !cardUsedThisTurn;
+    }
 
     public bool TryAttack()
     {
-        if (gamePaused || attackUsed) return false;
+        if (!CanUseCard()) return false;
 
-        HeroScript attacker = (currentTurn == TurnState.Player1) ? player1 : player2;
-        HeroScript target = (currentTurn == TurnState.Player1) ? player2 : player1;
+        HeroScript attacker =
+            (currentTurn == TurnState.Player1) ? player1 : player2;
+        HeroScript target =
+            (currentTurn == TurnState.Player1) ? player2 : player1;
 
         attacker.Attack(target);
-        attackUsed = true;
+
+        cardUsedThisTurn = true;
 
         if (target.pv <= 0)
         {
@@ -174,88 +224,145 @@ public class GameBehaviour : MonoBehaviour
         return true;
     }
 
-    private void HandleVictory(HeroScript winner, HeroScript loser)
-    {
-        Debug.Log($"{winner.name} gagne la manche !");
-
-        // Pause le jeu
-        PauseGame(true);
-
-        // Level up du vainqueur
-        winner.GainLevel(1);
-
-        // Reset PV du perdant uniquement
-        loser.pv = loser.max_pv;
-
-        // UI
-        ui.ShowBigMessage(
-            $"{winner.name} gagne la manche !",
-            2f,
-            true
-        );
-
-        // Nouvelle manche après délai
-        StartCoroutine(StartNextRoundAfterDelay(2f));
-    }
-
-
-    private IEnumerator StartNextRoundAfterDelay(float delay)
-{
-    yield return new WaitForSeconds(delay);
-
-    PauseGame(false);
-
-    round++;
-    StartRound();
-}
-
-
     public bool TryHeal(int amount)
     {
-        if (gamePaused || secondaryActionUsed || attackUsed) return false;
+        if (!CanUseCard()) return false;
 
-        HeroScript hero = (currentTurn == TurnState.Player1) ? player1 : player2;
+        HeroScript hero =
+            (currentTurn == TurnState.Player1) ? player1 : player2;
+
         hero.Heal(amount);
-        secondaryActionUsed = true;
+        cardUsedThisTurn = true;
+        EndTurn();
         return true;
     }
 
     public bool TryBuff()
     {
-        if (gamePaused || secondaryActionUsed || attackUsed) return false;
+        if (!CanUseCard()) return false;
 
-        HeroScript hero = (currentTurn == TurnState.Player1) ? player1 : player2;
+        HeroScript hero =
+            (currentTurn == TurnState.Player1) ? player1 : player2;
+
         hero.Buff();
-        secondaryActionUsed = true;
+        cardUsedThisTurn = true;
+        EndTurn();
         return true;
     }
 
     public bool TryEvolution(int requiredLevel)
     {
-        if (gamePaused) return false;
+        if (!CanUseCard()) return false;
 
-        HeroScript hero = (currentTurn == TurnState.Player1) ? player1 : player2;
-        return hero.TryEvolutionFromCard(requiredLevel);
-    }
+        HeroScript hero =
+            (currentTurn == TurnState.Player1) ? player1 : player2;
 
-    // ---------------- TIMER ----------------
+        bool success = hero.TryEvolutionFromCard(requiredLevel);
 
-    void Update()
-    {
-        UpdateFightDistance();
-
-        // Tant que la distance n'est pas atteinte → rien ne se passe
-        if (waitingForDistance)
-            return;
-
-        if (gamePaused)
-            return;
-
-        timer -= Time.deltaTime;
-        ui.UpdateHUD(timer);
-
-        if (timer <= 0 && !attackUsed)
+        if (success)
+        {
+            cardUsedThisTurn = true;
             EndTurn();
+        }
+
+        return success;
     }
 
+    // ---------------- VICTOIRE ----------------
+
+    private void HandleVictory(HeroScript winner, HeroScript loser)
+    {
+        PauseGame(true);
+
+        // Mise à jour score
+        if (winner == player1)
+            player1Score++;
+        else
+            player2Score++;
+
+        ui.UpdateScore(player1Score, player2Score);
+
+        // Level up du vainqueur
+        winner.GainLevel(1);
+
+        if (winner.lvl >= evolutionLevel)
+            ui.UnlockEvolutionCard();
+
+        // 🔥 Laisser la mort se jouer
+        StartCoroutine(HandleDeathAndNextRound(winner, loser));
+    }
+
+    private IEnumerator HandleDeathAndNextRound(HeroScript winner, HeroScript loser)
+    {
+        // ⏱ Temps pour laisser jouer l’animation de mort
+        yield return new WaitForSeconds(3.5f);
+
+        // Maintenant seulement → revive
+        loser.Revive();
+
+        // Vérifier fin de match
+        if (player1Score >= maxMatchesWon || player2Score >= maxMatchesWon)
+        {
+            DeclareFinalWinner(winner);
+            yield break;
+        }
+
+        ui.ShowBigMessage($"{winner.name} gagne la manche !", 2f, true);
+
+        yield return new WaitForSeconds(2f);
+
+        PauseGame(false);
+        round++;
+        StartRound();
+    }
+
+
+    private void DeclareFinalWinner(HeroScript winner)
+    {
+        matchOver = true;
+        PauseGame(true);
+
+        ui.ShowBigMessage(
+            $"{winner.name} remporte le match !",
+            3f,
+            true
+        );
+
+        ui.ShowRestartButton(true);
+    }
+
+    public void RestartGame()
+    {
+        player1Score = 0;
+        player2Score = 0;
+        round = 1;
+        matchOver = false;
+
+        ui.UpdateScore(player1Score, player2Score);
+        ui.ShowRestartButton(false);
+
+        player1.ResetHero(true);
+        player2.ResetHero(true);
+
+        matchStarted = false;
+        PauseGame(true);
+
+        ui.ShowBigMessage("Approchez les héros pour commencer", 2f, false);
+    }
+
+
+    private IEnumerator StartNextRoundAfterDelay(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        PauseGame(false);
+        round++;
+        StartRound();
+    }
+
+    // ---------------- PAUSE ----------------
+
+    public void PauseGame(bool value)
+    {
+        gamePaused = value;
+    }
 }
