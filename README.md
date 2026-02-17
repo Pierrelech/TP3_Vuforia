@@ -2,6 +2,10 @@
 
 **Strict Fighter** est une application de réalité augmentée interactive développée sous **Unity 3D** utilisant le moteur de recalage **Vuforia**[^1]. Le projet met en œuvre un système de combat au tour par tour géré par la détection et l'interaction dynamique entre plusieurs marqueurs physiques[^2].
 
+## 📺 Démo
+
+[![Demo video](https://drive.usercontent.google.com/download?id=1_Umg3BAXSWdBk6O14AVTkwvCx566mTZL)](https://www.youtube.com/watch?v=yCMsKed7RI0)
+
 ## 🚀 Fonctionnalités Clés
 
 * **Interaction Multi-Marqueurs :** Détection simultanée de plusieurs modèles 3D animés avec gestion dynamique de la rotation face-à-face basée sur la distance entre les marqueurs.
